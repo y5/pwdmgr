@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}new{% endblock %}
+{% block content %}
+<article id="main_article">
+    <h1>Click the button below to create a new, secure vault just for you.</h1>
+    <button id="make_button" onclick="create_vault()">Make vault</button>
+{% endblock %}
+{% block scripts %}
+<script>
+    Element.prototype.remove = function() { this.parentElement.removeChild(this); }
+    NodeList.prototype.remove = HTMLCollection.prototype.remove = function() { for (var i = this.length - 1; i >= 0; i--) { if (this[i] && this[i].parentElement) { this[i].parentElement.removeChild(this[i]); } } }
+
+    function create_vault() {
+        let http = new XMLHttpRequest();
+        http.open('POST', "/api/create", true);
+
+        http.setRequestHeader('Content-type', 'application/json');
+        http.responseType = 'json';
+        http.onreadystatechange = function() {
+            if (http.readyState == 4 && http.status == 200) {
+                document.getElementById("make_button").remove();
+                let main_div = document.createElement("div");
+                main_div.innerHTML = `<h2>Successfully created vault</h2><p>Please save your secret, you will need this to log in:</p><ul><li>${http.response["secret"]}</li></ul>`;
+                document.getElementById("main_article").append(main_div);
+                let redirect_div = document.createElement("div");
+                redirect_div.innerHTML = `<h2>Log in</h2><p>Click <a href="/vault">here</a> to open your fresh vault.</p>`;
+                document.getElementById("main_article").append(redirect_div);
+            }
+        }
+        http.send('');
+    }
+</script>
+{% endblock %}

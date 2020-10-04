@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}vault{% endblock %}
+{% block content %}
+<article id="main_article">
+    <h1>Enter your vault secret &amp; password to load your stored passwords</h1>
+    <input type="text" id="secret" name="secret" placeholder="Vault secret...">
+    <input type="text" id="pass" name="pass" placeholder="Vault password...">
+    <button id="load_vault_button" onclick="load_vault()">Load vault</button>
+{% endblock %}
+{% block scripts %}
+<script>
+    Element.prototype.remove = function() { this.parentElement.removeChild(this); }
+    NodeList.prototype.remove = HTMLCollection.prototype.remove = function() { for (var i = this.length - 1; i >= 0; i--) { if (this[i] && this[i].parentElement) { this[i].parentElement.removeChild(this[i]); } } }
+
+    String.prototype.pick = function(min, max) {
+        var n, chars = '';
+        if (typeof max === 'undefined') { n = min; } else { n = min + Math.floor(Math.random() * (max - min + 1)); }
+        for (var i = 0; i < n; i++) { chars += this.charAt(Math.floor(Math.random() * this.length)); }
+        return chars;
+    };
+
+    String.prototype.shuffle = function() {
+        var array = this.split('');
+        var tmp, current, top = array.length;
+        if (top)
+            while (--top) {
+                current = Math.floor(Math.random() * (top + 1));
+                tmp = array[current];
+                array[current] = array[top];
+                array[top] = tmp;
+            }
+        return array.join('');
+    };
+
+    let data = "";
+
+    function generate_password() { document.getElementById("add_password").value = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.pick(32, 32).shuffle(); }
+
+    function save_data() {
+        let http = new XMLHttpRequest();
+        http.open('POST', `/api/save/${document.getElementById("secret").value}`, true);
+
+        http.setRequestHeader('Content-type', 'application/json');
+        http.responseType = 'json';
+        http.onreadystatechange = function() { if (http.readyState == 4 && http.status == 200) { load_vault(); } }
+        http.send(CryptoJS.AES.encrypt(JSON.stringify(data), document.getElementById("pass").value));
+    }
+
+    function delete_account(pos) {
+        data.splice(pos, 1);
+        save_data();
+        load_vault();
+    }
+
+    function load_vault() {
+        if(document.getElementById("data_table")) { document.getElementById("data_table").remove(); }
+        if(document.getElementById("load_vault_button")) { document.getElementById("load_vault_button").remove(); }
+        let http = new XMLHttpRequest();
+        http.open('GET', `/api/open/${document.getElementById("secret").value}`, true);
+
+        http.setRequestHeader('Content-type', 'application/json');
+        http.responseType = 'json';
+        http.onreadystatechange = function() {
+            if (http.readyState == 4 && http.status == 200) {
+                data = [];
+                let response = http.response;
+                if (response["data"] != "None") {
+                    let decrypted_string = CryptoJS.AES.decrypt(response["data"], document.getElementById("pass").value).toString(CryptoJS.enc.Utf8);
+                    data = JSON.parse(decrypted_string);
+                }
+                else { data = []; }
+                let table = document.createElement("div");
+                table.id = "data_table";
+                table.innerHTML = `
+                <h2>Your data</h2>
+                <ul id="element_list">`;
+                for (var it in data){ table.innerHTML += `<li>${data[it]["description"]} &mdash; ${data[it]["username"]} &mdash; ${data[it]["password"]}
+                    <button id="delete_account_button" onclick="delete_account(${it})">Delete</button>
+                    </li>`; }
+                table.innerHTML += `
+                    <li>
+                        <input type="text" id="add_sitename" name="add_sitename" placeholder="Description...">
+                        <input type="text" id="add_username" name="add_username" placeholder="Username...">
+                        <input type="text" id="add_password" name="add_password" placeholder="Password...">
+                        <button id="generate_password_button" onclick="generate_password()">Generate secure password</button>
+                        <button id="add_account_button" onclick="add_account()">Add account</button>
+                    </li>
+                </ul>`;
+                document.getElementById("main_article").append(table);
+            }
+        }
+        http.send('');
+    }
+
+    function add_account() {
+        let new_account = {
+            "description": document.getElementById("add_sitename").value,
+            "username": document.getElementById("add_username").value,
+            "password": document.getElementById("add_password").value
+        };
+        for(let val in new_account) { if(new_account[val] == "") { return; }}
+        data.push(new_account);
+        save_data();
+        load_vault();
+    }
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.2/rollups/aes.js" integrity="sha256-/H4YS+7aYb9kJ5OKhFYPUjSJdrtV6AeyJOtTkw6X72o=" crossorigin="anonymous"></script>
+{% endblock %}
